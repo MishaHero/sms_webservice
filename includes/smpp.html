@@ -1,0 +1,205 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" >
+<head>
+  <title>ActiveXperts SMS Component Sample - HTML/Javascript SMPP</title>
+  <link rel="Stylesheet" type="text/css" href="css/Layout.css" />
+  
+  <object codebase="http://www.activexperts.com/files/sms-component/cab/6.2/axsms32.cab" classid="CLSID:B00F4729-F464-4690-88A0-E059489AF063" ></object>
+  <script language="JavaScript" type="text/javascript">
+    var objSmpp = new ActiveXObject("AxSms.Smpp");
+    
+    var objFso = new ActiveXObject("Scripting.FileSystemObject");
+    objSmpp.LogFile = objFso.GetSpecialFolder(2) + "\\Smpp.log";
+    // Windows default: 'C:\Users\%USERNAME%\AppData\Local\Temp\Smpp.log'
+    
+    window.attachEvent("onload", PageLoaded, false);
+    
+    var Credentials = new (function() {
+      var objMmUtilities = new ActiveXObject("AxSms.DemoAccount");      
+      this.strAccount = objMmUtilities.SystemId;
+      this.strPassword = objMmUtilities.Password; 
+    })(); 
+    
+    
+    function PageLoaded() {
+      document.getElementById("APIinfo").innerHTML = "Build: " + objSmpp.Build + "; Module: " + objSmpp.Module;
+      
+      var objForm = document.forms["SmppSampleForm"];
+      objForm.Logfile.value = objFso.GetSpecialFolder(2) + "\\Smpp.log";
+      objForm.txtSystemID.value = Credentials.strAccount;
+      objForm.txtPassword.value = Credentials.strPassword;
+      objForm.txtResult.value = "n/a";
+    }
+    
+    function SendMessage() {
+      var objForm = document.forms["SmppSampleForm"];
+      
+      objSmpp.Connect(objForm.txtServer.value, objForm.txtServerPort.value, 5000);
+      
+      if (objSmpp.LastError != 0) {
+        UpdateResult(objForm);
+      }
+      else {
+        var objSmsConstants = new ActiveXObject("AxSms.Constants");
+        
+        var iSystemMode = objSmsConstants.SMPP_BIND_TRANSCEIVER;
+        var iVersion = objSmsConstants.SMPP_VERSION_34;
+        
+        objSmpp.Bind(iSystemMode, objForm.txtSystemID.value, objForm.txtPassword.value, objForm.txtSystemType.value, iVersion, 0, 0, "", 5000);
+        
+        if (objSmpp.LastError != 0) {
+          UpdateResult(objForm);
+        }
+        else {
+          var objSmsMessage = new ActiveXObject("AxSms.Message");
+          
+          objSmsMessage.Clear();
+          objSmsMessage.ToAddress = objForm.txtToAddress.value;
+          objSmsMessage.Body = objForm.txtMessage.value;
+          
+          if (objForm.cbxUnicode.checked == 1)
+            objSmsMessage.DataCoding = objSmsConstants.DATACODING_UNICODE;
+         
+          objSmpp.SubmitSms(objSmsMessage, objSmsConstants.MULTIPART_ACCEPT);
+          UpdateResult(objForm);
+          
+          if (objSmpp.LastError == 0) {
+            if (objSmpp.WaitForSmsUpdate(3000))
+              objSmsMessage = objSmpp.FetchSmsUpdate();
+           
+            // SMPP command status codes are provider specific. The ActiveXperts SMPP Demo Gateway uses command status 1025
+            // to communicate there are no more credits left for this account on the ActiveXperts SMPP Demo Gateway.
+            if (objSmpp.LastError == 0)
+            {
+              if (objSmsMessage.SmppCommandStatus != 0)
+              {
+                if (objSmsMessage.SmppCommandStatus == 1025)
+                  objForm.txtResult.value = "Message not sent. Reason: No credits left."
+                else
+                  objForm.txtResult.value = "Message not sent. Reason: server error [" + objSmsMessage.SmppCommandStatus + "]."
+              }
+            }
+          }
+          
+          objSmpp.Disconnect()
+        }
+      }
+    }
+    
+    function UpdateResult(objForm) {
+      objForm.txtResult.value = objSmpp.LastError + ": " + objSmpp.GetErrorDescription(objSmpp.LastError);
+    }
+  </script>
+</head>
+<body>
+  <div class="maincontainer">
+    <div class="header">
+      <div class="stroke"></div>
+      <div class="logo"></div>
+    </div><!-- /header -->
+    <div class="menu">
+      | <a href="index.html">Home</a> 
+      | <a href="gsm.html">GSM</a>
+      | <a href="pagersnpp.html">Pager SNPP</a>
+      | <a href="smpp.html">SMPP</a>
+      | <a href="ussd.html">USSD Commands</a> |
+    </div><!-- /menu -->
+    <div class="container">
+      <h1>ActiveXperts SMS Component Sample - HTML/Javascript SMPP</h1>
+      <hr />
+      <p>
+        This sample allows you to send SMS messages over SMPP. If you don't have an SMPP subscription,
+        you can use the ActiveXperts SMPP Demo Gateway. You can send out a few SMS messages
+        for free through this gateway.
+      </p>
+      <form name="SmppSampleForm" action="smpp.html" method="post">
+        <h2>SMS Component:</h2>
+        <h3 id="APIinfo"></h3>
+        
+        <!-- Server -->
+        <label for="Server">Server:</label>
+        <p>
+          <input type="text" id="Server" name="txtServer" value="smpp.activexperts-labs.com" />
+          : <input type="text" name="txtServerPort" style="width: 75px;" value="2775" />
+        </p>
+        
+        <!-- System ID -->
+        <label for="SystemID">System ID:</label>
+        <p>
+          <input type="text" id="SystemID" name="txtSystemID" />
+        </p>
+        
+        <!-- Password -->
+        <label for="Password">Password:</label>
+        <p>
+          <input type="text" id="Password" name="txtPassword" />
+        </p>
+        
+        <!-- System Type -->
+        <label for="SystemType">System Type:</label>
+        <p>
+          <input type="text" id="SystemType" name="txtSystemType" value="SMPP" />
+        </p>  
+        
+        <!-- Recipient -->
+        <label for="ToAddress">Recipient:</label>
+        <p>
+          <input type="text" id="ToAddress" name="txtToAddress" value="[ToAddress]" />
+        </p>
+        
+        <!-- Message, Unicode -->
+        <label for="Message">Message:</label>
+        <p>
+          <textarea id="Message" name="txtMessage" style="height:45px;">Hello world send from ActiveXperts SMS Component!</textarea><br />
+         
+          <input type="checkbox" class="cbFix" id="Unicode" name="cbxUnicode" value="1" />
+          <label for="Unicode">Unicode</label>
+        </p>
+        
+        <!-- Send button -->
+        <div class="clearLabel"></div>
+        <p>
+          <input type="button" onclick="SendMessage()" value="Send SMS Message!" />
+        </p>
+        
+        <!-- Empty row -->
+        <div class="clearRow"></div>
+        
+        <!-- Result -->
+        <label for="Result"><b>Result:</b></label>
+        <p>
+          <input type="text" id="Result" name="txtResult" class="FullWidth Bold" />
+        </p>
+        
+        <!-- Message status -->
+        <label for="Status">Message status:</label>
+        <p>
+          <input type="text" id="Status" name="txtMessageStatus" class="FullWidth" />
+        </p>
+        
+        <!-- Logfile -->
+        <label for="Logfile">Logfile:</label>
+        <p>
+          <input type="text" id="Logfile" name="txtLogfile" class="FullWidth" />
+        </p>
+      </form>
+      <p>
+        This sample is based on ActiveXperts SMS Component, an <a href="http://www.activexperts.com" target="_blank">ActiveXperts Software</a> product.<br />
+        &nbsp;<a href="index.html">Back to main page</a>
+      </p>
+    </div><!-- /container -->
+    <div class="footer">
+      <div class="icon"></div>
+      <p>
+        Written by <a href="http://www.activexperts.com" target="_blank">Active<font color="#CCC000000">X</font>perts Software B.V.</a>
+        <small>
+          <a href="http://www.activexperts.com/activexperts/contact"       target="_blank">Contact Us</a> |
+          <a href="http://www.activexperts.com/activexperts/termsofuse"    target="_blank">Terms of Use</a> |
+          <a href="http://www.activexperts.com/activexperts/privacypolicy" target="_blank">Privacy Policy</a>
+        </small>
+      </p>
+    </div><!-- /footer -->
+  </div><!-- /maincontainer -->
+</body>
+</html>
